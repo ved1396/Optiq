@@ -1,13 +1,23 @@
 from engines.base import BaseEngine
 
+
 class RuleEngine(BaseEngine):
+    """Handles greetings, FAQs, and lightweight support prompts."""
+
+    FAQ_RESPONSES = {
+        "what is optiq": "Optiq is an intelligent query router that chooses the most efficient engine for each request.",
+        "what do you do": "I route each query to the lowest-cost engine that can still handle the task well.",
+        "who created you": "Optiq is designed as a multi-engine routing system for efficient AI orchestration.",
+        "help": "Try a math problem, factual search, a summary task, or a complex reasoning prompt to see the router adapt.",
+    }
+
     def process(self, query: str) -> str:
-        q = query.lower().strip()
-        if any(greet in q for greet in ["hi", "hello", "hi there", "hello there", "good morning"]):
-            return "Hello! I am Optiq, your intelligent AI router. How can I help you today?"
-        if "how are you" in q:
-            return "I'm functioning at optimal efficiency. Thanks for asking!"
-        if "who created you" in q or "what are you" in q:
-            return "I am Optiq, built to route your queries to the most efficient processing engine."
-        
-        return "I am a simple rule engine. I don't have an answer for that yet!"
+        normalized = query.lower().strip()
+        if any(greeting in normalized for greeting in ["hello", "hi", "hey", "good morning", "good evening"]):
+            return "Hello! I’m Optiq. Share a task and I’ll route it to the best engine."
+        if "how are you" in normalized:
+            return "I’m operating smoothly and ready to route your next query."
+        for key, value in self.FAQ_RESPONSES.items():
+            if key in normalized:
+                return value
+        return "This looks like a lightweight FAQ-style request, but I do not have a specific canned answer for it yet."

@@ -1,24 +1,29 @@
-import requests
 import logging
-from engines.base import BaseEngine
+
+import requests
+
 from config import settings
+from engines.base import BaseEngine
 
 logger = logging.getLogger(__name__)
 
+
 class LocalLLMEngine(BaseEngine):
+    """Wrapper for a local Ollama-style model endpoint."""
+
     def process(self, query: str) -> str:
-        url = f"{settings.ollama_endpoint}/api/generate"
-        payload = {
-            "model": settings.ollama_model,
-            "prompt": query,
-            "stream": False
-        }
-        
+        payload = {"model": settings.ollama_model, "prompt": query, "stream": False}
         try:
-            response = requests.post(url, json=payload, timeout=15)
+            response = requests.post(
+                f"{settings.ollama_endpoint}/api/generate",
+                json=payload,
+                timeout=settings.ollama_timeout_seconds,
+            )
             response.raise_for_status()
-            data = response.json()
-            return data.get("response", "")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Local LLM Error: {e}")
-            return "Mock Local LLM Response: (Could not connect to Ollama. Ensure it's running locally.) \nQuery: " + query
+            return response.json().get("response", "").strip() or "Local model returned an empty response."
+        except requests.RequestException as exc:
+            logger.warning("Local model unavailable: %s", exc)
+            return (
+                "Local LLM fallback response: the local model endpoint could not be reached, "
+                "but this query was classified as a good fit for lightweight generation or summarization."
+            )

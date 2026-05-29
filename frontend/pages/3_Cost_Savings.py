@@ -1,46 +1,42 @@
-import streamlit as st
 import pandas as pd
-import plotly.express as px
+import streamlit as st
+
+from frontend.components.cards import metric_card
+from frontend.components.charts import bar_chart, line_chart
+from frontend.components.formatters import currency
+from frontend.components.theme import apply_theme, render_hero
 from frontend.utils.api import get_cost_summary
 
-st.set_page_config(page_title="Cost Savings", page_icon="💰", layout="wide")
-st.title("💰 Cost Savings Dashboard")
+st.set_page_config(page_title="Cost Savings Dashboard", page_icon="OP", layout="wide")
+apply_theme()
+render_hero("Cost Savings Dashboard", "Show how intelligent routing reduces spend compared with sending every request to a large hosted model.")
 
-data = get_cost_summary()
+payload = get_cost_summary()
+summary = payload.get("summary", {})
+cost_per_route = pd.DataFrame(payload.get("cost_per_route", []))
+historical_trends = pd.DataFrame(payload.get("historical_trends", []))
 
-if not data:
-    st.info("No cost data available.")
+metric_cols = st.columns(3)
+with metric_cols[0]:
+    metric_card("Total Cost", currency(summary.get("total_cost", 0.0)))
+with metric_cols[1]:
+    metric_card("Estimated Cost Saved", currency(summary.get("estimated_cost_saved", 0.0)))
+with metric_cols[2]:
+    metric_card("Baseline Large LLM Cost", currency(summary.get("baseline_large_llm_cost", 0.0)))
+
+if cost_per_route.empty:
+    st.info("No cost data yet. Route a few queries first.")
 else:
-    df = pd.DataFrame(data)
-    
-    # Calculate savings
-    LARGE_LLM_COST = 0.0300
-    df['simulated_large_llm_cost'] = df['query_count'] * LARGE_LLM_COST
-    
-    actual_total_cost = df['total_cost'].sum()
-    baseline_total_cost = df['simulated_large_llm_cost'].sum()
-    savings = baseline_total_cost - actual_total_cost
-    savings_percentage = (savings / baseline_total_cost * 100) if baseline_total_cost > 0 else 0
-    
-    st.subheader("Financial Impact")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Actual Cost", f"${actual_total_cost:.4f}")
-    col2.metric("Estimated Cost Saved", f"${savings:.4f}")
-    col3.metric("Savings Percentage", f"{savings_percentage:.1f}%")
-    
-    st.markdown("---")
-    
-    col_chart1, col_chart2 = st.columns(2)
-    with col_chart1:
-        st.subheader("Cost by Route")
-        fig1 = px.bar(df, x='route', y='total_cost', color='route', title="Actual Cost Incurred")
-        st.plotly_chart(fig1, use_container_width=True)
-        
-    with col_chart2:
-        st.subheader("Cost Comparison")
-        comp_df = pd.DataFrame({
-            "Scenario": ["If everything used Large LLM", "With Optiq Routing"],
-            "Cost": [baseline_total_cost, actual_total_cost]
-        })
-        fig2 = px.bar(comp_df, x='Scenario', y='Cost', color='Scenario', text_auto='.4f')
-        st.plotly_chart(fig2, use_container_width=True)
+    charts = st.columns(2)
+    with charts[0]:
+        st.plotly_chart(bar_chart(cost_per_route, "route", "estimated_cost", "Cost Per Route"), use_container_width=True)
+    with charts[1]:
+        st.plotly_chart(bar_chart(cost_per_route, "route", "estimated_saved", "Estimated Savings Per Route"), use_container_width=True)
+
+    if not historical_trends.empty:
+        historical_trends["created_at"] = pd.to_datetime(historical_trends["created_at"])
+        st.plotly_chart(
+            line_chart(historical_trends, "created_at", "cumulative_cost", "Historical Cost Trend"),
+            use_container_width=True,
+        )
+        st.dataframe(historical_trends, use_container_width=True, hide_index=True)
